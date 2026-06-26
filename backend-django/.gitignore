@@ -1,0 +1,28 @@
+# Environnement virtuel
+venv/
+env/
+.env
+
+# Fichiers Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Base de données SQLite
+*.sqlite3
+db.sqlite3
+
+# Fichiers uploadés
+media/
+static/
+
+# Logs
+*.log
