@@ -161,10 +161,10 @@ export default {
     const getStatusLabel = (record) => {
       if (record.is_abnormal === true) return ' Anormal';
       if (record.is_abnormal === false) return ' Normal';
-      return '⏳ En attente';
+      return ' En attente';
     };
 
-    const getFileIcon = (fileName) => {
+  const getFileIcon = (fileName) => {
       if (!fileName) return 'File';
       const ext = fileName.split('.').pop()?.toLowerCase();
       if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) {
