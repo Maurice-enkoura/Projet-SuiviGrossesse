@@ -37,7 +37,7 @@
 
     <!-- Message d'erreur -->
     <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-      ❌ {{ error }}
+       {{ error }}
     </div>
 
     <!-- Liste -->
@@ -147,14 +147,14 @@ export default {
       error.value = '';
       
       try {
-        console.log('📤 Chargement des grossesses...');
+        console.log(' Chargement des grossesses...');
         const response = await api.get('/patient/pregnancies');
-        console.log('📥 Réponse brute:', response.data);
+        console.log(' Réponse brute:', response.data);
         
-        // ✅ Vos APIs retournent { message, data }
+        //  Vos APIs retournent { message, data }
         if (response.data && response.data.data) {
           pregnancies.value = Array.isArray(response.data.data) ? response.data.data : [];
-          console.log('✅ Grossesses chargées:', pregnancies.value.length);
+          console.log(' Grossesses chargées:', pregnancies.value.length);
         } else if (Array.isArray(response.data)) {
           pregnancies.value = response.data;
         } else {

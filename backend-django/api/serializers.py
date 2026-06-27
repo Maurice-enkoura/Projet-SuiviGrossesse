@@ -6,7 +6,8 @@ from rest_framework import serializers
 from .models import (
     User, Pregnancy, Appointment, Consultation, 
     MedicalExam, VitalSign, Alert, FollowUpSchedule,
-    Message, DoctorSchedule
+    Message, DoctorSchedule, Symptom, MedicalHistory,
+    Reminder, GrowthMeasurement
 )
 
 
@@ -15,10 +16,6 @@ from .models import (
 # ============================================================
 
 class UserPublicSerializer(serializers.ModelSerializer):
-    """
-    Sérialiseur pour renvoyer les informations publiques d'un utilisateur
-    (Sans le mot de passe)
-    """
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     
     class Meta:
@@ -30,10 +27,6 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.Serializer):
-    """
-    Sérialiseur pour l'inscription d'un nouvel utilisateur
-    Valide les données et crée l'utilisateur
-    """
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)
@@ -45,19 +38,16 @@ class RegisterSerializer(serializers.Serializer):
     address = serializers.CharField(required=False, allow_blank=True)
     
     def validate_username(self, value):
-        """Vérifier que le nom d'utilisateur n'existe pas déjà"""
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Ce nom d'utilisateur est déjà utilisé.")
         return value
     
     def validate_email(self, value):
-        """Vérifier que l'email n'existe pas déjà"""
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Cet email est déjà utilisé.")
         return value
     
     def validate(self, data):
-        """Validation croisée - Vérifier que les mots de passe correspondent"""
         if data['password'] != data['password_confirmation']:
             raise serializers.ValidationError({
                 'password_confirmation': 'Les mots de passe ne correspondent pas.'
@@ -65,7 +55,6 @@ class RegisterSerializer(serializers.Serializer):
         return data
     
     def create(self, validated_data):
-        """Créer l'utilisateur avec les données validées"""
         validated_data.pop('password_confirmation')
         user = User(**validated_data)
         user.set_password(validated_data['password'])
@@ -74,10 +63,6 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    """
-    Sérialiseur pour la connexion
-    Valide les identifiants
-    """
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
@@ -87,25 +72,34 @@ class LoginSerializer(serializers.Serializer):
 # ============================================================
 
 class PregnancySerializer(serializers.ModelSerializer):
-    """Sérialiseur pour une grossesse"""
     patient_name = serializers.CharField(source='patient.username', read_only=True)
     patient_id = serializers.IntegerField(source='patient.id', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    loss_type_display = serializers.CharField(source='get_loss_type_display', read_only=True)
     
     class Meta:
         model = Pregnancy
         fields = [
             'id', 'patient', 'patient_name', 'patient_id',
-            'start_date', 'expected_delivery_date', 'is_active',
+            'start_date', 'expected_delivery_date', 'actual_delivery_date',
+            'status', 'status_display', 'is_active',
+            'loss_date', 'loss_reason', 'loss_type', 'loss_type_display',
+            'current_week', 'weight_gain', 'blood_type', 'risk_factors',
             'notes', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'current_week']
 
 
 class PregnancyCreateSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour créer une grossesse"""
     class Meta:
         model = Pregnancy
         fields = ['start_date', 'expected_delivery_date', 'notes']
+
+
+class PregnancyLossSerializer(serializers.Serializer):
+    loss_type = serializers.ChoiceField(choices=Pregnancy.LOSS_TYPE_CHOICES)
+    loss_date = serializers.DateField()
+    loss_reason = serializers.CharField(required=False, allow_blank=True)
 
 
 # ============================================================
@@ -113,7 +107,6 @@ class PregnancyCreateSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class AppointmentSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour un rendez-vous"""
     patient_name = serializers.CharField(source='patient.username', read_only=True)
     caregiver_name = serializers.CharField(source='caregiver.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -129,7 +122,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
 
 class AppointmentCreateSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour créer un rendez-vous"""
     class Meta:
         model = Appointment
         fields = ['caregiver', 'pregnancy', 'date_time', 'duration_minutes', 'reason']
@@ -140,7 +132,6 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class ConsultationSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour une consultation"""
     patient_name = serializers.CharField(source='appointment.patient.username', read_only=True)
     caregiver_name = serializers.CharField(source='appointment.caregiver.username', read_only=True)
     
@@ -148,7 +139,9 @@ class ConsultationSerializer(serializers.ModelSerializer):
         model = Consultation
         fields = [
             'id', 'appointment', 'patient_name', 'caregiver_name',
-            'consultation_date', 'report', 'created_at', 'updated_at'
+            'consultation_date', 'report', 'blood_pressure',
+            'weight', 'urine_test', 'fetal_heartbeat', 'observations',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'consultation_date', 'created_at', 'updated_at']
 
@@ -158,7 +151,6 @@ class ConsultationSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class MedicalExamSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour un examen médical"""
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
     
     class Meta:
@@ -176,13 +168,12 @@ class MedicalExamSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class VitalSignSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les constantes médicales"""
     class Meta:
         model = VitalSign
         fields = [
             'id', 'consultation', 'weight_kg', 'blood_pressure_systolic',
             'blood_pressure_diastolic', 'uterine_height', 'fetal_heart_rate',
-            'observations', 'created_at', 'updated_at'
+            'fetal_movements', 'observations', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -192,7 +183,6 @@ class VitalSignSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class AlertSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour une alerte médicale"""
     alert_type_display = serializers.CharField(source='get_alert_type_display', read_only=True)
     severity_display = serializers.CharField(source='get_severity_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -213,7 +203,6 @@ class AlertSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class FollowUpScheduleSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour le calendrier de suivi"""
     class Meta:
         model = FollowUpSchedule
         fields = [
@@ -229,7 +218,6 @@ class FollowUpScheduleSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class MessageSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour un message"""
     sender_name = serializers.CharField(source='sender.username', read_only=True)
     recipient_name = serializers.CharField(source='recipient.username', read_only=True)
     sender_role = serializers.CharField(source='sender.role', read_only=True)
@@ -250,7 +238,6 @@ class MessageSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class DoctorScheduleSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les horaires d'un médecin"""
     day_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
     
     class Meta:
@@ -262,3 +249,58 @@ class DoctorScheduleSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ============================================================
+# ⭐ NOUVEAUX SÉRIALISEURS
+# ============================================================
+
+class SymptomSerializer(serializers.ModelSerializer):
+    symptom_type_display = serializers.CharField(source='get_symptom_type_display', read_only=True)
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+    
+    class Meta:
+        model = Symptom
+        fields = [
+            'id', 'patient', 'pregnancy', 'symptom_type', 'symptom_type_display',
+            'severity', 'severity_display', 'date', 'notes',
+            'resolved', 'resolved_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'date', 'created_at', 'updated_at']
+
+
+class MedicalHistorySerializer(serializers.ModelSerializer):
+    condition_type_display = serializers.CharField(source='get_condition_type_display', read_only=True)
+    
+    class Meta:
+        model = MedicalHistory
+        fields = [
+            'id', 'patient', 'condition_type', 'condition_type_display',
+            'condition_name', 'diagnosed_at', 'notes',
+            'resolved', 'resolved_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ReminderSerializer(serializers.ModelSerializer):
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    
+    class Meta:
+        model = Reminder
+        fields = [
+            'id', 'patient', 'pregnancy', 'title', 'description',
+            'reminder_date', 'type', 'type_display',
+            'is_sent', 'sent_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class GrowthMeasurementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GrowthMeasurement
+        fields = [
+            'id', 'pregnancy', 'date', 'week',
+            'weight_estimated', 'height_estimated',
+            'fetal_heart_rate', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'date', 'created_at', 'updated_at']

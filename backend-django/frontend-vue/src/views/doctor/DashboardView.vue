@@ -3,7 +3,7 @@
   <div class="space-y-6">
     <!-- En-tête -->
     <div>
-      <h1 class="text-2xl font-bold text-gray-800"> Tableau de bord</h1>
+      <h1 class="text-2xl font-bold text-gray-800">📊 Tableau de bord</h1>
       <p class="text-gray-500 text-sm">Bonjour, Dr. {{ doctorName }}</p>
     </div>
 
@@ -15,7 +15,7 @@
 
     <!-- Erreur -->
     <div v-else-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-       {{ error }}
+      ❌ {{ error }}
     </div>
 
     <!-- Contenu -->
@@ -99,7 +99,7 @@
       <!-- Rendez-vous du jour -->
       <div class="bg-white rounded-xl p-6 shadow-sm border border-blue-100">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="font-semibold text-gray-800"> Rendez-vous du jour</h3>
+          <h3 class="font-semibold text-gray-800">📅 Rendez-vous du jour</h3>
           <router-link to="/app/doctor/appointments" class="text-blue-500 text-sm hover:underline">Voir tout</router-link>
         </div>
         
@@ -183,10 +183,10 @@ export default {
 
     const getStatusLabel = (status) => {
       const labels = {
-        'SCHEDULED': ' En attente',
-        'CONFIRMED': ' Confirmé',
-        'COMPLETED': ' Terminé',
-        'CANCELLED': ' Annulé'
+        'SCHEDULED': '⏳ En attente',
+        'CONFIRMED': '✅ Confirmé',
+        'COMPLETED': '✔️ Terminé',
+        'CANCELLED': '❌ Annulé'
       };
       return labels[status] || status;
     };
@@ -196,38 +196,52 @@ export default {
       error.value = '';
       
       try {
-        console.log(' Chargement dashboard médecin...');
+        console.log('📤 Chargement dashboard médecin...');
+        console.log('👤 Utilisateur connecté:', user.value);
 
         // 1. Récupérer les patientes du médecin
         const patientsRes = await api.get('/caregiver/patients');
-        console.log('📥 Patientes:', patientsRes.data);
+        console.log('📥 Réponse patientes brute:', patientsRes.data);
         
         let patients = [];
         if (patientsRes.data && patientsRes.data.data) {
           patients = patientsRes.data.data;
+          console.log('✅ Patientes trouvées:', patients.length);
+        } else if (Array.isArray(patientsRes.data)) {
+          patients = patientsRes.data;
+        } else {
+          console.warn('⚠️ Aucune patiente trouvée');
         }
         stats.value.patients = patients.length;
 
         // 2. Récupérer les rendez-vous du médecin
         const appointmentsRes = await api.get('/caregiver/appointments');
-        console.log('📥 Rendez-vous:', appointmentsRes.data);
+        console.log('📥 Réponse rendez-vous brute:', appointmentsRes.data);
         
         let appointments = [];
         if (appointmentsRes.data && appointmentsRes.data.data) {
           appointments = appointmentsRes.data.data;
+          console.log('✅ Rendez-vous trouvés:', appointments.length);
+        } else if (Array.isArray(appointmentsRes.data)) {
+          appointments = appointmentsRes.data;
         }
         
         // Rendez-vous du jour
         const today = new Date().toISOString().split('T')[0];
-        todayAppointments.value = appointments.filter(a => 
-          a.date_time && a.date_time.startsWith(today)
-        );
+        console.log('📅 Date du jour:', today);
+        
+        todayAppointments.value = appointments.filter(a => {
+          if (!a.date_time) return false;
+          return a.date_time.startsWith(today);
+        });
         stats.value.todayAppointments = todayAppointments.value.length;
+        console.log('✅ Rendez-vous aujourd\'hui:', stats.value.todayAppointments);
         
         // En attente (SCHEDULED)
         stats.value.pending = appointments.filter(a => 
           a.status === 'SCHEDULED'
         ).length;
+        console.log('✅ Rendez-vous en attente:', stats.value.pending);
 
         // 3. Compter les grossesses actives des patientes
         let pregnanciesCount = 0;
@@ -235,6 +249,8 @@ export default {
           try {
             // Récupérer les grossesses de la patiente
             const pregRes = await api.get(`/patient/pregnancies`);
+            console.log(`📥 Grossesses pour patient ${patient.id}:`, pregRes.data);
+            
             if (pregRes.data && pregRes.data.data) {
               // Compter les grossesses actives de cette patiente
               const activePregnancies = pregRes.data.data.filter(
@@ -243,16 +259,17 @@ export default {
               pregnanciesCount += activePregnancies.length;
             }
           } catch (e) {
-            console.log(` Pas de grossesse pour patient ${patient.id}`);
+            console.log(`ℹ️ Pas de grossesse pour patient ${patient.id}`);
           }
         }
         stats.value.pregnancies = pregnanciesCount;
+        console.log('✅ Total grossesses suivies:', stats.value.pregnancies);
 
-        console.log(' Statistiques finales:', stats.value);
+        console.log('📊 Statistiques finales:', stats.value);
 
       } catch (error) {
-        console.error(' Erreur chargement dashboard:', error);
-        error.value = error.response?.data?.message || 'Erreur lors du chargement';
+        console.error('❌ Erreur chargement dashboard:', error);
+        error.value = error.response?.data?.message || error.message || 'Erreur lors du chargement';
         
         // Données de fallback
         stats.value = {

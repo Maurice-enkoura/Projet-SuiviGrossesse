@@ -644,3 +644,226 @@ class CaregiverConsultationCreateView(APIView):
             'message': 'Consultation ajoutée avec succès.',
             'data': ConsultationSerializer(consultation).data
         }, status=status.HTTP_201_CREATED)
+
+
+        # ============================================================
+# 7. SUIVI DES SYMPTÔMES (SOIGNANT)
+# ============================================================
+
+class CaregiverPatientSymptomsView(APIView):
+    """
+    GET /api/v1/caregiver/patients/<id>/symptoms - Symptômes d'une patiente
+    """
+    permission_classes = [IsAuthenticated, IsCaregiver]
+    
+    def get(self, request, pk):
+        try:
+            patient = User.objects.get(pk=pk, role='PATIENTE')
+        except User.DoesNotExist:
+            return Response({
+                'message': 'Patiente non trouvée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Vérifier que la patiente est attribuée au soignant
+        try:
+            UserCaregiver.objects.get(patient=patient, caregiver=request.user)
+        except UserCaregiver.DoesNotExist:
+            return Response({
+                'message': 'Cette patiente ne vous est pas attribuée.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        symptoms = Symptom.objects.filter(patient=patient).order_by('-date')
+        return Response({
+            'message': 'Symptômes de la patiente.',
+            'data': SymptomSerializer(symptoms, many=True).data
+        }, status=status.HTTP_200_OK)
+
+
+# ============================================================
+# 8. HISTORIQUE MÉDICAL (SOIGNANT)
+# ============================================================
+
+class CaregiverPatientMedicalHistoryView(APIView):
+    """
+    GET /api/v1/caregiver/patients/<id>/medical-history - Historique médical d'une patiente
+    POST /api/v1/caregiver/patients/<id>/medical-history - Ajouter un antécédent
+    """
+    permission_classes = [IsAuthenticated, IsCaregiver]
+    
+    def get_patient(self, pk, user):
+        try:
+            patient = User.objects.get(pk=pk, role='PATIENTE')
+        except User.DoesNotExist:
+            return None
+        
+        # Vérifier que la patiente est attribuée au soignant
+        try:
+            UserCaregiver.objects.get(patient=patient, caregiver=user)
+        except UserCaregiver.DoesNotExist:
+            return None
+        
+        return patient
+    
+    def get(self, request, pk):
+        patient = self.get_patient(pk, request.user)
+        if not patient:
+            return Response({
+                'message': 'Patiente non trouvée ou non attribuée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        history = MedicalHistory.objects.filter(patient=patient).order_by('-created_at')
+        return Response({
+            'message': 'Historique médical de la patiente.',
+            'data': MedicalHistorySerializer(history, many=True).data
+        }, status=status.HTTP_200_OK)
+    
+    def post(self, request, pk):
+        patient = self.get_patient(pk, request.user)
+        if not patient:
+            return Response({
+                'message': 'Patiente non trouvée ou non attribuée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        data = request.data
+        data['patient'] = patient.id
+        
+        serializer = MedicalHistorySerializer(data=data)
+        if not serializer.is_valid():
+            return Response({
+                'message': 'Erreur de validation.',
+                'errors': serializer.errors
+            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+        serializer.save()
+        
+        return Response({
+            'message': 'Antécédent ajouté avec succès.',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+
+# ============================================================
+# 9. RAPPELS PATIENTE (SOIGNANT)
+# ============================================================
+
+class CaregiverPatientRemindersView(APIView):
+    """
+    GET /api/v1/caregiver/patients/<id>/reminders - Rappels d'une patiente
+    POST /api/v1/caregiver/patients/<id>/reminders - Créer un rappel
+    """
+    permission_classes = [IsAuthenticated, IsCaregiver]
+    
+    def get_patient(self, pk, user):
+        try:
+            patient = User.objects.get(pk=pk, role='PATIENTE')
+        except User.DoesNotExist:
+            return None
+        
+        try:
+            UserCaregiver.objects.get(patient=patient, caregiver=user)
+        except UserCaregiver.DoesNotExist:
+            return None
+        
+        return patient
+    
+    def get(self, request, pk):
+        patient = self.get_patient(pk, request.user)
+        if not patient:
+            return Response({
+                'message': 'Patiente non trouvée ou non attribuée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        reminders = Reminder.objects.filter(patient=patient).order_by('reminder_date')
+        return Response({
+            'message': 'Rappels de la patiente.',
+            'data': ReminderSerializer(reminders, many=True).data
+        }, status=status.HTTP_200_OK)
+    
+    def post(self, request, pk):
+        patient = self.get_patient(pk, request.user)
+        if not patient:
+            return Response({
+                'message': 'Patiente non trouvée ou non attribuée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        data = request.data
+        data['patient'] = patient.id
+        
+        serializer = ReminderSerializer(data=data)
+        if not serializer.is_valid():
+            return Response({
+                'message': 'Erreur de validation.',
+                'errors': serializer.errors
+            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+        serializer.save()
+        
+        return Response({
+            'message': 'Rappel créé avec succès.',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+
+# ============================================================
+# 10. DÉCLARER UNE PERTE DE GROSSESSE (SOIGNANT)
+# ============================================================
+
+class CaregiverPatientLossView(APIView):
+    """
+    POST /api/v1/caregiver/patients/<id>/loss - Déclarer une perte de grossesse
+    """
+    permission_classes = [IsAuthenticated, IsCaregiver]
+    
+    def post(self, request, pk):
+        try:
+            patient = User.objects.get(pk=pk, role='PATIENTE')
+        except User.DoesNotExist:
+            return Response({
+                'message': 'Patiente non trouvée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            UserCaregiver.objects.get(patient=patient, caregiver=request.user)
+        except UserCaregiver.DoesNotExist:
+            return Response({
+                'message': 'Cette patiente ne vous est pas attribuée.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Trouver la grossesse active
+        try:
+            pregnancy = Pregnancy.objects.get(patient=patient, is_active=True)
+        except Pregnancy.DoesNotExist:
+            return Response({
+                'message': 'Aucune grossesse active trouvée.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = PregnancyLossSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'message': 'Erreur de validation.',
+                'errors': serializer.errors
+            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+        data = serializer.validated_data
+        
+        pregnancy.status = 'LOST'
+        pregnancy.is_active = False
+        pregnancy.loss_type = data['loss_type']
+        pregnancy.loss_date = data['loss_date']
+        pregnancy.loss_reason = data.get('loss_reason', '')
+        pregnancy.save()
+        
+        patient.total_miscarriages += 1
+        patient.is_pregnant = False
+        patient.save()
+        
+        AuditLog.objects.create(
+            user=request.user,
+            action='CAREGIVER_PREGNANCY_LOSS',
+            description=f"Perte de grossesse déclarée par {request.user.username} pour {patient.username}",
+        )
+        
+        return Response({
+            'message': 'Perte de grossesse déclarée avec succès.',
+            'data': PregnancySerializer(pregnancy).data
+        }, status=status.HTTP_200_OK)

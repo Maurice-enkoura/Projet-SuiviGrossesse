@@ -87,6 +87,18 @@ DATABASES = {
     }
 }
 
+
+
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    ".ngrok-free.dev",
+]
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://finished-creature-cardigan.ngrok-free.dev",
+]
 # ============================================================
 # REST FRAMEWORK - ⚠️ IMPORTANT : DEFAULT_SCHEMA_CLASS
 # ============================================================
@@ -167,3 +179,4 @@ JWT_EXPIRES_DAYS = int(os.getenv('JWT_EXPIRES_DAYS', '7'))
 # ============================================================
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

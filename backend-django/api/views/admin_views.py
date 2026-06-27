@@ -510,3 +510,82 @@ class AdminExamTypeView(APIView):
             'message': 'Types d\'examens disponibles.',
             'data': exam_types
         }, status=status.HTTP_200_OK)
+    
+# ============================================================
+# STATISTIQUES AVANCÉES
+# ============================================================
+
+class AdminPregnancyStatsView(APIView):
+    """
+    GET /api/v1/admin/stats/pregnancies - Statistiques détaillées des grossesses
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def get(self, request):
+        total = Pregnancy.objects.count()
+        active = Pregnancy.objects.filter(status='ACTIVE').count()
+        completed = Pregnancy.objects.filter(status='COMPLETED').count()
+        lost = Pregnancy.objects.filter(status='LOST').count()
+        terminated = Pregnancy.objects.filter(status='TERMINATED').count()
+        
+        # Taux de perte
+        loss_rate = (lost / total * 100) if total > 0 else 0
+        
+        # Grossesses par mois
+        from django.db.models import Count
+        from django.db.models.functions import TruncMonth
+        
+        monthly = Pregnancy.objects.annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('id')
+        ).order_by('month')
+        
+        return Response({
+            'message': 'Statistiques détaillées des grossesses.',
+            'data': {
+                'total': total,
+                'active': active,
+                'completed': completed,
+                'lost': lost,
+                'terminated': terminated,
+                'loss_rate': round(loss_rate, 2),
+                'monthly': monthly
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class AdminLossStatsView(APIView):
+    """
+    GET /api/v1/admin/stats/losses - Statistiques des pertes de grossesse
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def get(self, request):
+        losses = Pregnancy.objects.filter(status='LOST')
+        
+        # Par type de perte
+        by_type = {}
+        for loss_type, label in Pregnancy.LOSS_TYPE_CHOICES:
+            count = losses.filter(loss_type=loss_type).count()
+            if count > 0:
+                by_type[label] = count
+        
+        # Par mois
+        from django.db.models import Count
+        from django.db.models.functions import TruncMonth
+        
+        monthly = losses.annotate(
+            month=TruncMonth('loss_date')
+        ).values('month').annotate(
+            count=Count('id')
+        ).order_by('month')
+        
+        return Response({
+            'message': 'Statistiques des pertes de grossesse.',
+            'data': {
+                'total': losses.count(),
+                'by_type': by_type,
+                'monthly': monthly
+            }
+        }, status=status.HTTP_200_OK)

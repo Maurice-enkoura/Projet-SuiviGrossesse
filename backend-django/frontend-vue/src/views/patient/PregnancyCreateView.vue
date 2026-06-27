@@ -5,18 +5,18 @@
       <button @click="$router.back()" class="p-2 rounded-lg hover:bg-rose-50 transition">
         <ArrowLeft class="w-5 h-5 text-gray-600" />
       </button>
-      <h1 class="text-2xl font-bold text-gray-800">➕ Nouvelle grossesse</h1>
+      <h1 class="text-2xl font-bold text-gray-800">Nouvelle grossesse</h1>
     </div>
 
     <form @submit.prevent="handleSubmit" class="bg-white rounded-xl p-6 shadow-sm border border-rose-100 space-y-5">
       <!-- Message d'erreur -->
       <div v-if="errorMessage" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-        ❌ {{ errorMessage }}
+         {{ errorMessage }}
       </div>
 
       <!-- Message de succès -->
       <div v-if="successMessage" class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-        ✅ {{ successMessage }}
+         {{ successMessage }}
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -110,16 +110,16 @@ export default {
           notes: form.value.notes || ''
         });
 
-        console.log('📥 Réponse brute:', response.data);
+        console.log(' Réponse brute:', response.data);
         
-        // ✅ Vos APIs retournent { message, data }
+        //  Vos APIs retournent { message, data }
         if (response.data && response.data.message) {
-          successMessage.value = response.data.message || '✅ Grossesse créée avec succès !';
+          successMessage.value = response.data.message || ' Grossesse créée avec succès !';
         }
         
-        // ✅ Si l'API retourne les données de la grossesse créée
+        //  Si l'API retourne les données de la grossesse créée
         if (response.data && response.data.data) {
-          console.log('✅ Grossesse créée:', response.data.data);
+          console.log(' Grossesse créée:', response.data.data);
         }
         
         // Rediriger après un délai
@@ -128,7 +128,7 @@ export default {
         }, 1500);
         
       } catch (error) {
-        console.error('❌ Erreur création:', error);
+        console.error(' Erreur création:', error);
         
         if (error.response?.data?.message) {
           errorMessage.value = error.response.data.message;

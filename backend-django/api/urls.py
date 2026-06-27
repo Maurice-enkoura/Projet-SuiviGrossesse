@@ -7,9 +7,12 @@ from django.urls import path
 from .views.auth_views import RegisterView, LoginView, LogoutView, MeView
 from .views.patient_views import (
     PatientPregnancyListView, PatientPregnancyDetailView,
+    PatientPregnancyLossView, PatientPregnancyCompleteView,
     PatientAppointmentListView, PatientAppointmentCancelView,
     PatientExamListView, PatientVitalSignListView,
-    PatientFollowUpView, PatientAlertListView
+    PatientFollowUpView, PatientAlertListView,
+    PatientSymptomListView, PatientMedicalHistoryView,
+    PatientReminderListView, PatientGrowthMeasurementView
 )
 from .views.caregiver_views import (
     CaregiverPatientListView, CaregiverPatientDetailView,
@@ -17,16 +20,16 @@ from .views.caregiver_views import (
     CaregiverConsultationCreateView,
     CaregiverExamCreateView,
     CaregiverVitalSignCreateView,
-    CaregiverAlertCreateView, CaregiverAlertListView, CaregiverAlertDetailView
+    CaregiverAlertCreateView, CaregiverAlertListView, CaregiverAlertDetailView,
+    CaregiverPatientSymptomsView, CaregiverPatientMedicalHistoryView,
+    CaregiverPatientRemindersView, CaregiverPatientLossView
 )
 from .views.admin_views import (
     AdminUserListView, AdminUserDetailView, AdminUserRoleView,
     AdminStatsView, AdminAlertListView, AdminLogListView,
-    AdminExamTypeView
+    AdminExamTypeView, AdminPregnancyStatsView, AdminLossStatsView
 )
-from .views.admin_settings_views import (
-    AdminSettingsView
-)
+from .views.admin_settings_views import AdminSettingsView
 from .views.message_views import (
     PatientMessageListView,
     CaregiverMessageListView,
@@ -39,7 +42,7 @@ from .views.schedule_views import (
 
 urlpatterns = [
     # ============================================================
-    # AUTHENTIFICATION - Routes publiques
+    # AUTHENTIFICATION
     # ============================================================
     path('auth/register', RegisterView.as_view(), name='register'),
     path('auth/login', LoginView.as_view(), name='login'),
@@ -51,6 +54,8 @@ urlpatterns = [
     # ============================================================
     path('patient/pregnancies', PatientPregnancyListView.as_view(), name='patient-pregnancies'),
     path('patient/pregnancies/<int:pk>', PatientPregnancyDetailView.as_view(), name='patient-pregnancy-detail'),
+    path('patient/pregnancies/<int:pk>/loss', PatientPregnancyLossView.as_view(), name='patient-pregnancy-loss'),
+    path('patient/pregnancies/<int:pk>/complete', PatientPregnancyCompleteView.as_view(), name='patient-pregnancy-complete'),
     
     # ============================================================
     # PATIENTE - Rendez-vous
@@ -74,6 +79,26 @@ urlpatterns = [
     # PATIENTE - Messages
     # ============================================================
     path('patient/messages', PatientMessageListView.as_view(), name='patient-messages'),
+    
+    # ============================================================
+    # PATIENTE - Symptômes ⭐ NOUVEAU
+    # ============================================================
+    path('patient/symptoms', PatientSymptomListView.as_view(), name='patient-symptoms'),
+    
+    # ============================================================
+    # PATIENTE - Historique médical ⭐ NOUVEAU
+    # ============================================================
+    path('patient/medical-history', PatientMedicalHistoryView.as_view(), name='patient-medical-history'),
+    
+    # ============================================================
+    # PATIENTE - Rappels ⭐ NOUVEAU
+    # ============================================================
+    path('patient/reminders', PatientReminderListView.as_view(), name='patient-reminders'),
+    
+    # ============================================================
+    # PATIENTE - Mesures de croissance ⭐ NOUVEAU
+    # ============================================================
+    path('patient/pregnancies/<int:pregnancy_id>/growth', PatientGrowthMeasurementView.as_view(), name='patient-growth'),
     
     # ============================================================
     # SOIGNANT - Patients
@@ -121,6 +146,26 @@ urlpatterns = [
     path('caregiver/slots', CaregiverAvailableSlotsView.as_view(), name='caregiver-slots'),
     
     # ============================================================
+    # SOIGNANT - Symptômes patiente ⭐ NOUVEAU
+    # ============================================================
+    path('caregiver/patients/<int:pk>/symptoms', CaregiverPatientSymptomsView.as_view(), name='caregiver-patient-symptoms'),
+    
+    # ============================================================
+    # SOIGNANT - Historique patiente ⭐ NOUVEAU
+    # ============================================================
+    path('caregiver/patients/<int:pk>/medical-history', CaregiverPatientMedicalHistoryView.as_view(), name='caregiver-patient-medical-history'),
+    
+    # ============================================================
+    # SOIGNANT - Rappels patiente ⭐ NOUVEAU
+    # ============================================================
+    path('caregiver/patients/<int:pk>/reminders', CaregiverPatientRemindersView.as_view(), name='caregiver-patient-reminders'),
+    
+    # ============================================================
+    # SOIGNANT - Perte de grossesse ⭐ NOUVEAU
+    # ============================================================
+    path('caregiver/patients/<int:pk>/loss', CaregiverPatientLossView.as_view(), name='caregiver-patient-loss'),
+    
+    # ============================================================
     # ADMINISTRATEUR - Utilisateurs
     # ============================================================
     path('admin/users', AdminUserListView.as_view(), name='admin-users'),
@@ -131,12 +176,10 @@ urlpatterns = [
     # ADMINISTRATEUR - Supervision
     # ============================================================
     path('admin/stats', AdminStatsView.as_view(), name='admin-stats'),
+    path('admin/stats/pregnancies', AdminPregnancyStatsView.as_view(), name='admin-pregnancy-stats'),
+    path('admin/stats/losses', AdminLossStatsView.as_view(), name='admin-loss-stats'),
     path('admin/alerts', AdminAlertListView.as_view(), name='admin-alerts'),
     path('admin/logs', AdminLogListView.as_view(), name='admin-logs'),
     path('admin/exam-types', AdminExamTypeView.as_view(), name='admin-exam-types'),
-    
-    # ============================================================
-    # ADMINISTRATEUR - Paramètres ⭐ NOUVEAU
-    # ============================================================
     path('admin/settings', AdminSettingsView.as_view(), name='admin-settings'),
 ]

@@ -32,14 +32,12 @@ class User(models.Model):
     """
     Modèle Utilisateur - Peut être PATIENTE, SOIGNANT ou ADMINISTRATEUR
     """
-    # ⭐ RÔLES
     ROLE_CHOICES = [
         ('PATIENTE', 'Patiente'),
         ('SOIGNANT', 'Soignant'),
         ('ADMIN', 'Administrateur'),
     ]
     
-    # ⭐ STATUTS DU COMPTE
     ACCOUNT_STATUS_CHOICES = [
         ('PENDING', 'En attente'),
         ('ACTIVE', 'Actif'),
@@ -52,10 +50,8 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
     
-    # Rôle de l'utilisateur
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='PATIENTE')
     
-    # ===== STATUT DU COMPTE =====
     account_status = models.CharField(
         max_length=20, 
         choices=ACCOUNT_STATUS_CHOICES, 
@@ -71,34 +67,36 @@ class User(models.Model):
         related_name='validated_users'
     )
     
-    # ===== INFORMATIONS PERSONNELLES =====
     phone = models.CharField(max_length=15, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(null=True, blank=True)
     
-    # ===== POUR LES SOIGNANTS UNIQUEMENT =====
+    # Pour les soignants
     speciality = models.CharField(max_length=100, null=True, blank=True)
-    license_number = models.CharField(max_length=50, null=True, blank=True)  # Numéro d'ordre
+    license_number = models.CharField(max_length=50, null=True, blank=True)
     diploma_file = models.FileField(upload_to='diplomas/', null=True, blank=True)
     license_file = models.FileField(upload_to='licenses/', null=True, blank=True)
     id_card_file = models.FileField(upload_to='id_cards/', null=True, blank=True)
     years_of_experience = models.IntegerField(null=True, blank=True)
     hospital_affiliation = models.CharField(max_length=255, null=True, blank=True)
     
-    # ===== POUR LES PATIENTES UNIQUEMENT =====
+    # Pour les patientes
     is_pregnant = models.BooleanField(default=False)
     pregnancy_confirmation_date = models.DateField(null=True, blank=True)
     expected_delivery_date = models.DateField(null=True, blank=True)
     gynecologist_name = models.CharField(max_length=255, null=True, blank=True)
     
-    # ===== DATES =====
+    # Statistiques patiente
+    total_pregnancies = models.IntegerField(default=0)
+    total_births = models.IntegerField(default=0)
+    total_miscarriages = models.IntegerField(default=0)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     objects = UserManager()
     
-    # Attributs requis par Django
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
     
@@ -124,37 +122,67 @@ class User(models.Model):
         return f"{self.username} ({self.get_role_display()})"
     
     def set_password(self, raw_password):
-        """Hasher le mot de passe"""
         try:
             self.password = make_password(raw_password, hasher='bcrypt')
         except ValueError:
             self.password = make_password(raw_password)
     
     def check_password(self, raw_password):
-        """Vérifier un mot de passe hashé"""
         try:
             return check_password(raw_password, self.password)
         except:
             return False
 
 
-# ============================================================
-# MODÈLES EXISTANTS (Pregnancy, Appointment, Consultation, etc.)
-# ============================================================
-
 class Pregnancy(models.Model):
     """
     Grossesse d'une patiente
     """
+    STATUS_CHOICES = [
+        ('ACTIVE', 'Active'),
+        ('COMPLETED', 'Accouchement'),
+        ('LOST', 'Perte de grossesse'),
+        ('TERMINATED', 'Interrompue'),
+    ]
+    
+    LOSS_TYPE_CHOICES = [
+        ('MISCARRIAGE', 'Fausse couche'),
+        ('STILLBIRTH', 'Mort-né'),
+        ('ECTOPIC', 'Grossesse extra-utérine'),
+        ('TERMINATION', 'Interruption volontaire'),
+        ('OTHER', 'Autre'),
+    ]
+    
     patient = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
         related_name='pregnancies'
     )
+    
+    # Dates
     start_date = models.DateField(help_text="Date des dernières règles (DDR)")
     expected_delivery_date = models.DateField(help_text="Date prévue d'accouchement (DPA)")
+    actual_delivery_date = models.DateField(null=True, blank=True)
+    
+    # Statut
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
     is_active = models.BooleanField(default=True)
+    
+    # Perte de grossesse
+    loss_date = models.DateField(null=True, blank=True)
+    loss_reason = models.TextField(null=True, blank=True)
+    loss_type = models.CharField(max_length=20, choices=LOSS_TYPE_CHOICES, null=True, blank=True)
+    
+    # Suivi
+    current_week = models.IntegerField(default=0)
+    weight_gain = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    blood_type = models.CharField(max_length=5, null=True, blank=True)
+    risk_factors = models.TextField(null=True, blank=True)
+    
+    # Notes
     notes = models.TextField(null=True, blank=True)
+    
+    # Dates système
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -163,6 +191,7 @@ class Pregnancy(models.Model):
         db_table = 'pregnancies'
         indexes = [
             models.Index(fields=['patient']),
+            models.Index(fields=['status']),
             models.Index(fields=['is_active']),
         ]
         constraints = [
@@ -174,7 +203,14 @@ class Pregnancy(models.Model):
         ]
     
     def __str__(self):
-        return f"Grossesse de {self.patient.username}"
+        return f"Grossesse {self.get_status_display()} - {self.patient.username}"
+    
+    def save(self, *args, **kwargs):
+        if self.start_date:
+            from datetime import date
+            delta = date.today() - self.start_date
+            self.current_week = max(0, delta.days // 7)
+        super().save(*args, **kwargs)
 
 
 class Appointment(models.Model):
@@ -186,6 +222,7 @@ class Appointment(models.Model):
         ('CONFIRMED', 'Confirmé'),
         ('COMPLETED', 'Effectué'),
         ('CANCELLED', 'Annulé'),
+        ('MISSED', 'Absent'),
     ]
     
     patient = models.ForeignKey(
@@ -236,6 +273,14 @@ class Consultation(models.Model):
     )
     consultation_date = models.DateField(auto_now_add=True)
     report = models.TextField()
+    
+    # Nouvelles fonctionnalités
+    blood_pressure = models.CharField(max_length=20, null=True, blank=True)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    urine_test = models.CharField(max_length=20, null=True, blank=True)
+    fetal_heartbeat = models.IntegerField(null=True, blank=True)
+    observations = models.TextField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -260,6 +305,9 @@ class MedicalExam(models.Model):
         ('ULTRASOUND', 'Échographie'),
         ('BLOOD_PRESSURE', 'Tension artérielle'),
         ('WEIGHT', 'Poids'),
+        ('HEART', 'Monitoring cardiaque'),
+        ('TOXOPLASMOSIS', 'Toxoplasmose'),
+        ('DIABETES', 'Diabète gestationnel'),
         ('OTHER', 'Autre'),
     ]
     
@@ -304,6 +352,7 @@ class VitalSign(models.Model):
     blood_pressure_diastolic = models.IntegerField(null=True, blank=True)
     uterine_height = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     fetal_heart_rate = models.IntegerField(null=True, blank=True)
+    fetal_movements = models.CharField(max_length=50, null=True, blank=True)
     observations = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -328,6 +377,9 @@ class Alert(models.Model):
         ('BLEEDING', 'Saignement'),
         ('PRETERM_RISK', 'Risque d\'accouchement prématuré'),
         ('GESTATIONAL_DIABETES', 'Diabète gestationnel'),
+        ('PREECLAMPSIA', 'Pré-éclampsie'),
+        ('ANEMIA', 'Anémie'),
+        ('INFECTION', 'Infection'),
         ('OTHER', 'Autre'),
     ]
     
@@ -469,7 +521,7 @@ class AuditLog(models.Model):
 
 
 # ============================================================
-# NOUVEAUX MODÈLES
+# NOUVEAUX MODÈLES POUR UN SUIVI COMPLET
 # ============================================================
 
 class Message(models.Model):
@@ -555,3 +607,181 @@ class DoctorSchedule(models.Model):
     
     def __str__(self):
         return f"{self.doctor.username} - {self.get_day_of_week_display()}"
+
+
+# ⭐ NOUVEAUX MODÈLES
+
+class Symptom(models.Model):
+    """
+    Suivi des symptômes de la grossesse
+    """
+    SEVERITY_CHOICES = [
+        (1, 'Léger'),
+        (2, 'Modéré'),
+        (3, 'Sévère'),
+    ]
+    
+    SYMPTOM_TYPES = [
+        ('NAUSEA', 'Nausées'),
+        ('FATIGUE', 'Fatigue'),
+        ('PAIN', 'Douleurs'),
+        ('BLEEDING', 'Saignement'),
+        ('HEADACHE', 'Maux de tête'),
+        ('DIZZINESS', 'Vertiges'),
+        ('SWELLING', 'Œdème'),
+        ('BACK_PAIN', 'Douleurs dorsales'),
+        ('HEARTBURN', 'Brûlures d\'estomac'),
+        ('INSOMNIA', 'Insomnie'),
+        ('ANXIETY', 'Anxiété'),
+        ('OTHER', 'Autre'),
+    ]
+    
+    patient = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='symptoms'
+    )
+    pregnancy = models.ForeignKey(
+        Pregnancy, 
+        on_delete=models.CASCADE, 
+        related_name='symptoms',
+        null=True,
+        blank=True
+    )
+    symptom_type = models.CharField(max_length=50, choices=SYMPTOM_TYPES)
+    severity = models.IntegerField(choices=SEVERITY_CHOICES, default=1)
+    date = models.DateField(auto_now_add=True)
+    notes = models.TextField(null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+    resolved_at = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        managed = True
+        db_table = 'symptoms'
+        indexes = [
+            models.Index(fields=['patient']),
+            models.Index(fields=['pregnancy']),
+            models.Index(fields=['symptom_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_symptom_type_display()} - {self.patient.username}"
+
+
+class MedicalHistory(models.Model):
+    """
+    Historique médical complet de la patiente
+    """
+    CONDITION_TYPES = [
+        ('CHRONIC', 'Maladie chronique'),
+        ('ALLERGY', 'Allergie'),
+        ('SURGERY', 'Chirurgie'),
+        ('MEDICATION', 'Médicament'),
+        ('GENETIC', 'Condition génétique'),
+        ('INFECTION', 'Infection'),
+        ('MENTAL', 'Santé mentale'),
+        ('OTHER', 'Autre'),
+    ]
+    
+    patient = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='medical_history'
+    )
+    condition_type = models.CharField(max_length=20, choices=CONDITION_TYPES)
+    condition_name = models.CharField(max_length=255)
+    diagnosed_at = models.DateField(null=True, blank=True)
+    notes = models.TextField()
+    resolved = models.BooleanField(default=False)
+    resolved_at = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        managed = True
+        db_table = 'medical_history'
+        indexes = [
+            models.Index(fields=['patient']),
+            models.Index(fields=['condition_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.condition_name} - {self.patient.username}"
+
+
+class Reminder(models.Model):
+    """
+    Rappels et notifications
+    """
+    REMINDER_TYPES = [
+        ('APPOINTMENT', 'Rendez-vous'),
+        ('MEDICATION', 'Médicament'),
+        ('EXAM', 'Examen'),
+        ('GENERAL', 'Général'),
+        ('FOLLOW_UP', 'Suivi'),
+    ]
+    
+    patient = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='reminders'
+    )
+    pregnancy = models.ForeignKey(
+        Pregnancy, 
+        on_delete=models.CASCADE, 
+        related_name='reminders',
+        null=True,
+        blank=True
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    reminder_date = models.DateTimeField()
+    type = models.CharField(max_length=20, choices=REMINDER_TYPES, default='GENERAL')
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        managed = True
+        db_table = 'reminders'
+        indexes = [
+            models.Index(fields=['patient']),
+            models.Index(fields=['pregnancy']),
+            models.Index(fields=['reminder_date']),
+            models.Index(fields=['is_sent']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.patient.username}"
+
+
+class GrowthMeasurement(models.Model):
+    """
+    Mesures de croissance du bébé
+    """
+    pregnancy = models.ForeignKey(
+        Pregnancy, 
+        on_delete=models.CASCADE, 
+        related_name='growth_measurements'
+    )
+    date = models.DateField(auto_now_add=True)
+    week = models.IntegerField()
+    weight_estimated = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    height_estimated = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    fetal_heart_rate = models.IntegerField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        managed = True
+        db_table = 'growth_measurements'
+        indexes = [
+            models.Index(fields=['pregnancy']),
+        ]
+    
+    def __str__(self):
+        return f"Mesure semaine {self.week} - {self.pregnancy.patient.username}"

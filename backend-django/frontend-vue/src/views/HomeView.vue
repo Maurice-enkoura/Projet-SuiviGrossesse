@@ -1,4 +1,4 @@
-<!-- src/views/HomeView.vue -->
+ <!-- src/views/HomeView.vue -->
 <template>
   <div class="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50">
     <!-- Navigation -->
